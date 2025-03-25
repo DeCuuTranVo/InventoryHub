@@ -3,29 +3,49 @@
 <h3>Product List</h3>
 
 <ul>
-   @if (products != null)
+    @if (products != null)
     {
+        // Loop through each product and display its details
         foreach (var product in products)
         {
-            <li>@product.Name - $@product.Price</li>
+            <li>
+                <strong>@product.Name</strong> - $@product.Price<br />
+                Stock: @product.Stock<br />
+                Category: @product.Category.Name
+            </li>
         }
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+                // Display error message if there is one
+        <li>@errorMessage</li>
     }
     else
     {
+        // Display loading message while products are being fetched
         <li>Loading...</li>
     }
 </ul>
 
 @code {
+    // Array to hold the fetched products
     private Product[]? products;
+    // Variable to hold any error messages
     private string? errorMessage;
+
+    // Method called when the component is initialized
     protected override async Task OnInitializedAsync()
     {
-        // API call logic will go here
+        await FetchProductsAsync();
+    }
+
+    // Method to fetch products from the API
+    private async Task FetchProductsAsync()
+    {
         try
         {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var response = await httpClient.GetAsync("https://localhost:7260/api/products");
+            using var httpClient = CreateHttpClient();
+            var response = await httpClient.GetAsync("https://localhost:7260/api/productlist");
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
@@ -35,25 +55,49 @@
                 };
             products = System.Text.Json.JsonSerializer.Deserialize<Product[]>(json, options);
         }
-        catch (HttpRequestException httpEx)
-        {
-            errorMessage = $"Request error: {httpEx.Message}";
-        }
-        catch (TaskCanceledException timeoutEx)
-        {
-            errorMessage = "Request timed out. Please try again later.";
-        }
         catch (Exception ex)
         {
-            errorMessage = $"An unexpected error occurred: {ex.Message}";
+            HandleError(ex);
         }
     }
 
+    // Method to create an HttpClient with a 30-second timeout
+    private HttpClient CreateHttpClient()
+    {
+        return new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+    }
+
+    // Method to handle errors
+    private void HandleError(Exception ex)
+    {
+        switch (ex)
+        {
+            case HttpRequestException httpEx:
+                errorMessage = $"Request error: {httpEx.Message}";
+                break;
+            case TaskCanceledException timeoutEx:
+                errorMessage = "Request timed out. Please try again later.";
+                break;
+            default:
+                errorMessage = $"An unexpected error occurred: {ex.Message}";
+                break;
+        }
+    }
+
+    // Class representing a product
     public class Product
     {
         public int Id { get; set; }
         public string Name { get; set; }
         public double Price { get; set; }
         public int Stock { get; set; }
+        public Category Category { get; set; }
+    }
+
+    // Class representing a category
+    public class Category
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
     }
 }
